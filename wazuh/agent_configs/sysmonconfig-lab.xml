@@ -1,0 +1,36 @@
+<!--
+  Minimal Sysmon config for the Home SOC Lab.
+  Covers exactly what wazuh/custom_rules/local_rules.xml consumes:
+    - Event ID 1  (Process creation)      -> suspicious PowerShell detection
+    - Event ID 3  (Network connection)    -> optional extra visibility
+    - Event ID 10 (Process access)        -> LSASS access / credential dumping
+
+  For broader real-world coverage, swap this for SwiftOnSecurity's full
+  config: https://github.com/SwiftOnSecurity/sysmon-config
+-->
+<Sysmon schemaversion="4.90">
+  <EventFiltering>
+
+    <RuleGroup name="" groupRelation="or">
+      <ProcessCreate onmatch="include">
+        <!-- Include everything; local_rules.xml filters on command line -->
+      </ProcessCreate>
+    </RuleGroup>
+
+    <RuleGroup name="" groupRelation="or">
+      <NetworkConnect onmatch="include">
+        <Image condition="end with">powershell.exe</Image>
+        <Image condition="end with">cmd.exe</Image>
+        <Image condition="end with">rundll32.exe</Image>
+        <Image condition="end with">mshta.exe</Image>
+      </NetworkConnect>
+    </RuleGroup>
+
+    <RuleGroup name="" groupRelation="or">
+      <ProcessAccess onmatch="include">
+        <TargetImage condition="end with">lsass.exe</TargetImage>
+      </ProcessAccess>
+    </RuleGroup>
+
+  </EventFiltering>
+</Sysmon>

@@ -1,0 +1,13 @@
+# Scenario: EternalBlue (MS17-010) exposure CHECK ONLY — scanner module,
+# does not exploit. Safe to run against win-target even if unpatched; it
+# will not crash the box like the full exploit can.
+#
+# If you want to go further and actually run
+# exploit/windows/smb/ms17_010_eternalblue, do it deliberately, on a
+# disposable/snapshotted VM, outside this automated suite — it can BSOD
+# an unpatched target.
+
+use auxiliary/scanner/smb/smb_ms17_010
+set RHOSTS {{TARGET}}
+run
+exit -y

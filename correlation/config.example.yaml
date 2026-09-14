@@ -1,0 +1,19 @@
+# Copy to config.yaml and fill in your lab's actual values.
+# config.yaml is gitignored-by-convention — don't commit real credentials.
+
+indexer:
+  url: "https://10.10.10.10:9200"   # Wazuh Indexer (OpenSearch) endpoint
+  username: "admin"
+  password: "CHANGE_ME"
+  verify_tls: false                  # self-signed certs by default in wazuh-docker
+  alerts_index_pattern: "wazuh-alerts-*"
+
+correlation:
+  # Alerts from the same source IP within this window are grouped into one incident.
+  window_minutes: 15
+  # Minimum Wazuh rule level to consider (filters out routine/noise alerts).
+  min_level: 7
+
+report:
+  output_dir: "./reports"
+  organization_name: "Home SOC Lab"

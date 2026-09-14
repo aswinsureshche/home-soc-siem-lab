@@ -1,0 +1,23 @@
+<!--
+  Home SOC Lab — custom decoders
+  Loaded at /var/ossec/etc/decoders/local_decoder.xml on the manager.
+
+  Sysmon, Windows eventchannel, and Suricata eve.json are already decoded by
+  Wazuh's stock decoders — you don't need anything here for those. This file
+  covers ONE gap: Windows Defender Firewall's pfirewall.log, which gives you
+  cheap network-scan visibility on the Windows target even before Suricata
+  is deployed (see wazuh/agent_configs/enable_windows_firewall_logging.ps1).
+
+  Sample line from pfirewall.log:
+  2026-01-01 12:00:00 DROP TCP 10.10.10.50 10.10.10.20 51820 445 60 S 123456789 0 0 0 - - RECEIVE
+  field order: date time action protocol src-ip dst-ip src-port dst-port size ...
+-->
+<decoder name="win-firewall">
+  <program_name>^pfirewall</program_name>
+</decoder>
+
+<decoder name="win-firewall-fields">
+  <parent>win-firewall</parent>
+  <regex type="pcre2">^\S+ \S+ (\S+) (\S+) (\S+) (\S+) (\S+) (\S+)</regex>
+  <order>action,protocol,srcip,dstip,srcport,dstport</order>
+</decoder>

@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Real credentials/config — never commit these, only the .example version
+correlation/config.yaml
+
+# Generated output
+correlation/incidents.json
+correlation/report.md
+correlation/report.pdf
+correlation/reports/

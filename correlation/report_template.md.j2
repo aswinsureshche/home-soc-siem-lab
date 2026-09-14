@@ -1,0 +1,45 @@
+# Incident Report — {{ organization_name }}
+
+**Generated:** {{ generated_at }}
+**Incidents:** {{ incidents|length }}
+
+---
+
+{% for inc in incidents %}
+## Incident {{ loop.index }}: {{ inc.source_ip }} — {{ inc.severity }}
+
+| Field | Value |
+|---|---|
+| Source IP | `{{ inc.source_ip }}` |
+| Severity | **{{ inc.severity }}** |
+| Attack stages observed | {{ inc.stages|join(', ') }} |
+| First seen | {{ inc.first_seen }} |
+| Last seen | {{ inc.last_seen }} |
+| Total alerts | {{ inc.alert_count }} |
+| Highest rule level | {{ inc.max_level }} |
+
+### Timeline
+
+| Time | Level | Rule | Description | Agent | Dest |
+|---|---|---|---|---|---|
+{% for a in inc.alerts -%}
+| {{ a.timestamp }} | {{ a.level }} | {{ a.rule_id }} | {{ a.description }} | {{ a.agent }} | {{ a.dst_ip or '-' }} |
+{% endfor %}
+
+### Recommended response
+
+{% if inc.severity == "CRITICAL" -%}
+- Isolate `{{ inc.source_ip }}` at the network/firewall level immediately.
+- Review affected host(s) for persistence (new services, scheduled tasks, new accounts).
+- Rotate credentials for any account involved in a successful logon during this window.
+{% elif inc.severity == "HIGH" -%}
+- Investigate `{{ inc.source_ip }}` — confirm whether this was the authorized attack-sim run or unexpected activity.
+- Check for follow-on activity from the same source in the next hour.
+{% else -%}
+- Monitor; no immediate action required if this matches an expected attack-sim test run.
+{% endif %}
+
+---
+{% endfor %}
+
+*Generated automatically by `correlation/generate_report.py` from Wazuh Indexer alert data. Verify findings before acting on them — this is a home lab correlation tool, not a production SOC platform.*

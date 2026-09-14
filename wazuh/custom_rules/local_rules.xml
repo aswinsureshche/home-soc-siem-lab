@@ -1,0 +1,160 @@
+<!--
+  Home SOC Lab — custom detection rules
+  Loaded at /var/ossec/etc/rules/local_rules.xml on the manager.
+  Rule IDs 100000-100999 are reserved for local/custom use by convention.
+
+  These sit ON TOP OF Wazuh's built-in rulesets for Sysmon, Windows
+  eventchannel, and Suricata — they only add lab-specific thresholds,
+  correlation, and tagging so the attack-sim scenarios produce clean,
+  high-signal alerts instead of relying on generic defaults.
+-->
+<group name="local,home_soc_lab,">
+
+  <!-- ============================================================
+       1. Network recon: Suricata port-scan signatures
+       Requires Suricata's eve.json feeding into Wazuh (see
+       suricata/install_suricata.sh) with the emerging-scan / stream
+       rule categories enabled.
+       ============================================================ -->
+  <rule id="100010" level="0">
+    <if_group>ids</if_group>
+    <field name="data.alert.category">Attempted Information Leak|Generic Protocol Command Decode|Potentially Bad Traffic</field>
+    <description>Suricata: low-priority protocol/traffic anomaly (base rule, no alert)</description>
+  </rule>
+
+  <rule id="100011" level="10" frequency="8" timeframe="60">
+    <if_matched_sid>86601</if_matched_sid>
+    <same_source_ip />
+    <description>Nmap-style port scan detected: 8+ Suricata scan alerts from the same source in 60s</description>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+    <group>recon,port_scan,</group>
+  </rule>
+
+  <!-- Fallback if the built-in Suricata ruleset SID differs from 86601 in
+       your ET Open ruleset version: match on category text instead. -->
+  <rule id="100012" level="10" frequency="8" timeframe="60">
+    <if_group>ids</if_group>
+    <field name="data.alert.category">Attempted Information Leak|Misc activity|Not Suspicious Traffic</field>
+    <regex type="pcre2">(?i)nmap|port ?scan|possible scan</regex>
+    <same_source_ip />
+    <description>Nmap-style port scan detected (category/message match): $(srcip) hit 8+ scan signatures in 60s</description>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+    <group>recon,port_scan,</group>
+  </rule>
+
+  <!-- ============================================================
+       1b. Network recon via Windows Defender Firewall drop log
+       (works without Suricata — see custom_decoders/local_decoder.xml
+       and agent_configs/enable_windows_firewall_logging.ps1)
+       ============================================================ -->
+  <rule id="100013" level="3">
+    <decoded_as>win-firewall-fields</decoded_as>
+    <field name="action">DROP</field>
+    <description>Windows Firewall dropped a connection attempt</description>
+    <group>firewall_drop,</group>
+  </rule>
+
+  <rule id="100014" level="10" frequency="15" timeframe="60">
+    <if_matched_sid>100013</if_matched_sid>
+    <same_source_ip />
+    <description>Nmap-style port scan detected via firewall drops: 15+ distinct blocked connections from $(srcip) in 60s</description>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+    <group>recon,port_scan,</group>
+  </rule>
+
+  <!-- ============================================================
+       2. Brute force: repeated Windows failed logons (4625)
+       NOTE: 60122/60106 are the stock Wazuh rule IDs for Windows
+       logon-failure/logon-success in recent 4.x rulesets. Confirm against
+       your installed version with:
+         grep -A2 'id="601' /var/ossec/ruleset/rules/0580-win-security_rules.xml
+       and adjust if_matched_sid/if_sid below if they differ.
+       ============================================================ -->
+  <rule id="100020" level="10" frequency="6" timeframe="120">
+    <if_matched_sid>60122</if_matched_sid>
+    <same_source_ip />
+    <description>Windows brute force suspected: 6+ failed logons (4625) from the same source in 120s</description>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+    <group>authentication_failures,brute_force,</group>
+  </rule>
+
+  <rule id="100021" level="12" frequency="1" timeframe="60">
+    <if_matched_sid>100020</if_matched_sid>
+    <if_sid>60106</if_sid>
+    <description>Brute force followed by a successful logon (4624) from the same source: likely compromised credential</description>
+    <mitre>
+      <id>T1110</id>
+      <id>T1078</id>
+    </mitre>
+    <group>authentication_success_after_brute_force,</group>
+  </rule>
+
+  <!-- ============================================================
+       3. Lateral movement / exploitation indicators (Sysmon)
+       ============================================================ -->
+  <!-- Sysmon Event ID 10: process access. Flag anything touching lsass.exe,
+       the classic Mimikatz-style credential dump target. -->
+  <rule id="100030" level="13">
+    <if_group>sysmon_event10</if_group>
+    <field name="win.eventdata.targetImage" type="pcre2">(?i)lsass\.exe$</field>
+    <description>Suspicious process access to LSASS (possible credential dumping)</description>
+    <mitre>
+      <id>T1003</id>
+    </mitre>
+    <group>credential_access,lsass_access,</group>
+  </rule>
+
+  <!-- Sysmon Event ID 1: process creation. Flag encoded/obfuscated PowerShell,
+       a common post-exploitation pattern from Metasploit/Meterpreter payloads. -->
+  <rule id="100031" level="12">
+    <if_group>sysmon_event1</if_group>
+    <field name="win.eventdata.image" type="pcre2">(?i)powershell(_ise)?\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)-enc(odedcommand)?\s|-nop\s|-w(indowstyle)?\s+hidden|IEX\s*\(|DownloadString</field>
+    <description>Suspicious encoded/hidden PowerShell execution (possible payload staging)</description>
+    <mitre>
+      <id>T1059.001</id>
+      <id>T1027</id>
+    </mitre>
+    <group>execution,suspicious_powershell,</group>
+  </rule>
+
+  <!-- New service creation shortly after a network logon: classic
+       psexec/Meterpreter lateral movement pattern. -->
+  <rule id="100032" level="12">
+    <if_sid>18145</if_sid> <!-- Windows Security 7045: new service installed -->
+    <field name="win.eventdata.serviceFileName" type="pcre2">(?i)\\Users\\Public\\|\\Windows\\Temp\\|%TEMP%</field>
+    <description>New service installed from a suspicious/temp path (possible lateral movement tool drop)</description>
+    <mitre>
+      <id>T1543.003</id>
+      <id>T1021</id>
+    </mitre>
+    <group>lateral_movement,persistence,</group>
+  </rule>
+
+  <!-- ============================================================
+       4. Composite incident: recon -> brute force -> exploitation
+       Fires once all three stages are seen from the same source within
+       15 minutes — this is the "kill chain" alert the correlation
+       script also builds independently from raw alerts.
+       ============================================================ -->
+  <rule id="100040" level="15" frequency="1" timeframe="900">
+    <if_matched_sid>100021</if_matched_sid>
+    <if_sid>100030,100031,100032</if_sid>
+    <same_source_ip />
+    <description>Multi-stage attack: recon/brute-force followed by exploitation-stage activity from $(srcip)</description>
+    <mitre>
+      <id>T1110</id>
+      <id>T1003</id>
+    </mitre>
+    <group>multi_stage_attack,incident,</group>
+  </rule>
+
+</group>
